@@ -1,0 +1,187 @@
+---
+import Layout from "../layouts/Layout.astro";
+import populationMain from "../assets/populationMain.json";
+
+const listePeriode = [...new Set(populationMain.map((d) => d.Période))]
+  .sort()
+  .reverse();
+const listeSexe = [...new Set(populationMain.map((d) => d.Sexe))];
+const listeAge = [...new Set(populationMain.map((d) => d.Âge))];
+---
+
+<Layout
+  title="Population des départements — carte interactive"
+  description="Carte de la population des départements filtrable par période, sexe et âge"
+>
+  <main class="page">
+    <div class="page-intro">
+      <h1>La population des départements</h1>
+      <p id="population-description">filtres :</p>
+    </div>
+    <div class="controls" aria-label="Filtres de la population">
+      <label for="periode">Période</label>
+      <select id="periode">
+        {listePeriode.map((p) => <option selected={p === 2015}>{p}</option>)}
+      </select>
+      <label for="sexe">Sexe</label>
+      <select id="sexe">
+        {listeSexe.map((s) => <option selected={s === "Total"}>{s}</option>)}
+      </select>
+      <label for="age">Âge</label>
+      <select id="age">
+        {listeAge.map((a) => <option selected={a === "Total"}>{a}</option>)}
+      </select>
+    </div>
+    <div class="visualization-panel population-panel">
+      <div class="panel-label">
+        <span>CARTE CHOROPLÈTHE</span><span>96 départements</span>
+      </div>
+      <p id="population-status" class="population-status" aria-live="polite">
+      </p>
+      <div id="population-map" aria-live="polite"></div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import * as Plot from "@observablehq/plot";
+  import populationMain from "../assets/populationMain.json";
+  import departements from "../assets/departements.geojson.json";
+
+  const yearSelect = document.querySelector<HTMLSelectElement>("#periode");
+  const sexSelect = document.querySelector<HTMLSelectElement>("#sexe");
+  const ageSelect = document.querySelector<HTMLSelectElement>("#age");
+  const mapElement = document.getElementById("population-map");
+
+  if (!yearSelect || !sexSelect || !ageSelect || !mapElement) {
+    throw new Error("Les contrôles de population sont introuvables.");
+  }
+
+  const yearControl = yearSelect;
+  const sexControl = sexSelect;
+  const ageControl = ageSelect;
+  const mapContainer = mapElement;
+  const records = populationMain;
+  const features = departements.features;
+  const statusElement = document.getElementById("population-status");
+
+  function availableRecords() {
+    return records.filter(
+      (record) =>
+        record.Période === Number(yearControl.value) &&
+        record.Sexe === sexControl.value,
+    );
+  }
+
+  function updateAgeOptions() {
+    const currentAge = ageControl.value.trim();
+    const availableAges = [
+      ...new Set(availableRecords().map((record) => record.Âge.trim())),
+    ];
+    ageControl.replaceChildren(
+      ...availableAges.map((age) => new Option(age, age)),
+    );
+    const nextAge = availableAges.includes(currentAge)
+      ? currentAge
+      : availableAges.includes("Total")
+        ? "Total"
+        : availableAges[0];
+    if (nextAge) ageControl.value = nextAge;
+  }
+
+  function updateSexOptions() {
+    const currentSex = sexControl.value;
+    const availableSexes = [
+      ...new Set(
+        records
+          .filter((record) => record.Période === Number(yearControl.value))
+          .map((record) => record.Sexe),
+      ),
+    ];
+    sexControl.replaceChildren(
+      ...availableSexes.map((sex) => new Option(sex, sex)),
+    );
+    sexControl.value = availableSexes.includes(currentSex)
+      ? currentSex
+      : availableSexes.includes("Total")
+        ? "Total"
+        : availableSexes[0];
+    updateAgeOptions();
+  }
+
+  function render() {
+    const selectedYear = Number(yearControl.value);
+    const selectedSex = sexControl.value;
+    const selectedAge = ageControl.value;
+    const values = new Map(
+      records
+        .filter(
+          (record) =>
+            record.Période === selectedYear &&
+            record.Sexe === selectedSex &&
+            record.Âge.trim() === selectedAge.trim(),
+        )
+        .map((record) => [record.Géographie, record.Valeur]),
+    );
+    if (statusElement) {
+      statusElement.textContent = values.size
+        ? `${values.size} départements avec des données pour cette sélection.`
+        : "Aucune donnée pour cette combinaison. Les filtres ont été réinitialisés.";
+    }
+    const mappedFeatures = features.map((feature) => ({
+      ...feature,
+      properties: {
+        ...feature.properties,
+        Valeur: values.get(feature.properties.nom) ?? null,
+      },
+    }));
+    const plot = Plot.plot({
+      width: 1100,
+      height: 800,
+      title: `Population — ${selectedYear}, ${selectedSex}, ${selectedAge.trim()}`,
+      subtitle: "Valeur de population par département",
+      ariaLabel: "Carte choroplèthe de la population des départements français",
+      caption: "Les départements sans donnée sont affichés en gris.",
+      projection: {
+        type: "mercator",
+        domain: { type: "FeatureCollection", features: mappedFeatures },
+      },
+      color: {
+        type: "quantile",
+        n: 8,
+        scheme: "Greens",
+        legend: true,
+        label: "Population en centaines de milliers",
+        transform: (value) => Math.round(value / 100000),
+      },
+      marks: [
+        Plot.geo(
+          { type: "FeatureCollection", features: mappedFeatures },
+          {
+            fill: "Valeur",
+            stroke: "white",
+            strokeWidth: 0.5,
+            tip: true,
+            title: (feature) =>
+              `${feature.properties.nom}: ${
+                feature.properties.Valeur?.toLocaleString("fr-FR") ??
+                "pas de donnée"
+              }`,
+          },
+        ),
+        Plot.frame(),
+      ],
+    });
+    mapContainer.replaceChildren(plot);
+  }
+
+  [yearControl, sexControl, ageControl].forEach((element) =>
+    element.addEventListener("change", () => {
+      if (element === yearControl) updateSexOptions();
+      else if (element === sexControl) updateAgeOptions();
+      render();
+    }),
+  );
+  updateSexOptions();
+  render();
+</script>

@@ -1,0 +1,57 @@
+---
+import "leaflet/dist/leaflet.css";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout
+  title="Établissements universitaires — carte"
+  description="Carte interactive des établissements universitaires en France"
+>
+  <main class="page">
+    <div class="page-intro">
+      <h1>Les établissements universitaires</h1>
+      <p id="map-description">
+        les établissements répartis sur le territoire français. Sélectionnez un
+        marqueur pour voir son nom.
+      </p>
+    </div>
+    <div class="visualization-panel">
+      <div class="panel-label">
+        <span>CARTE INTERACTIVE</span><span>2 507 établissements</span>
+      </div>
+      <div
+        id="map"
+        aria-label="Carte interactive des établissements universitaires"
+        aria-describedby="map-description"
+        role="application"
+      >
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import L from "leaflet";
+  import listeEtablissements from "../assets/listeEtablissements.json";
+
+  const map = L.map("map").setView([46.6033, 1.883], 6);
+
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(map);
+
+  listeEtablissements.forEach((etablissement) => {
+    const dot = L.circleMarker([etablissement.lat, etablissement.lon], {
+      color: "red",
+      fillColor: "red",
+      fillOpacity: 0.25,
+      radius: 4,
+    })
+      .addTo(map)
+      .bindTooltip(etablissement.name);
+
+    dot.bindPopup(`<strong>${etablissement.name}</strong>`);
+  });
+</script>

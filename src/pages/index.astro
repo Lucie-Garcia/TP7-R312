@@ -6,16 +6,23 @@ import penguins from "../assets/penguins.json";
 ---
 
 <Layout>
-  <h1 class="text-2xl">Test Astro et Plot (Observablehq)</h1>
-  <PlotFigure
-    options={{
-      marks: [
-        Plot.dot(penguins, {
-          x: "culmen_length_mm",
-          y: "culmen_depth_mm",
-          stroke: "species",
-        }),
-      ],
-    }}
-  />
+  <main class="page home-page">
+    <p>Accecsibilité</p>
+
+    <PlotFigure
+      options={{
+        title: "Longueur et profondeur du culmen des manchots",
+        subtitle: "Chaque point représente un manchot observé",
+        caption: "Figure 1. Relation entre les deux mesures du culmen.",
+        ariaLabel: "Nuage de points des mesures du culmen par espèce",
+        marks: [
+          Plot.dot(penguins, {
+            x: "culmen_length_mm",
+            y: "culmen_depth_mm",
+            stroke: "species",
+          }),
+        ],
+      }}
+    />
+  </main>
 </Layout>
